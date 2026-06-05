@@ -440,36 +440,51 @@ def _render_timeline(df, uid):
     udf = df[df["user_id"] == uid].copy()
     udf = udf.sort_values("timestamp", na_position="last")
 
-    html = '<div class="tl-wrap">'
     for i, (_, r) in enumerate(udf.iterrows()):
         sus = bool(r["is_suspicious"])
-        flagged_cls = "flagged" if sus else ""
-        ts_lines = _fmt_ts(r.get("timestamp")).split("\n")
-        ts_html = "<br>".join(ts_lines)
-        is_last = (i == len(udf) - 1)
-        line_html = "" if is_last else '<div class="tl-line"></div>'
-        reason_html = ""
-        if sus:
-            reason_html = f'<div class="tl-reason">⚑ {r.get("reason","—")}</div>'
+        score = float(r["fraud_score"])
+        ts = _fmt_ts(r.get("timestamp"), short=True)
+        merchant = r.get("merchant") or "—"
+        amount = _fmt_amount(r)
+        country = r.get("country") or "—"
+        tid = r.get("transaction_id") or "—"
+        reason = r.get("reason") or ""
 
-        html += f"""
-        <div class="tl-entry">
-          <div class="tl-ts">{ts_html}</div>
-          <div class="tl-spine">
-            <div class="tl-dot-outer {flagged_cls}"><div class="tl-dot-inner"></div></div>
-            {line_html}
-          </div>
-          <div class="tl-card {flagged_cls}">
-            <div class="tl-card-top">
-              <span class="tl-merchant">{r.get('merchant','—')}</span>
-              <span class="tl-amount">{_fmt_amount(r)}</span>
-            </div>
-            <div class="tl-country">{r.get('country','—')} · {r.get('transaction_id','')}</div>
-            {reason_html}
-          </div>
-        </div>"""
-    html += "</div>"
-    st.markdown(html, unsafe_allow_html=True)
+        col_ts, col_card = st.columns([1, 4])
+
+        with col_ts:
+            st.markdown(
+                f"<div style='text-align:right;font-family:var(--mono);font-size:.68rem;"
+                f"color:var(--stone);padding-top:16px;line-height:1.5'>{ts}</div>",
+                unsafe_allow_html=True)
+
+        with col_card:
+            border_color = "var(--alert)" if sus else "var(--rule)"
+            bg_color = "var(--alert-bg)" if sus else "white"
+            border_left = f"3px solid {border_color}" if sus else f"1px solid {border_color}"
+            dot = "🔴" if sus else "⚪"
+
+            header_html = (
+                f"<div style='display:flex;justify-content:space-between;align-items:baseline'>"
+                f"<span style='font-family:var(--display);font-weight:700;font-size:1rem'>{dot} {merchant}</span>"
+                f"<span style='font-family:var(--mono);font-size:.8rem'>{amount}</span>"
+                f"</div>"
+                f"<div style='font-family:var(--mono);font-size:.65rem;color:var(--stone);margin-top:3px'>"
+                f"{country} · {tid} · {_score_bar_html(score)}</div>"
+            )
+            reason_html = ""
+            if sus and reason:
+                reason_html = (
+                    f"<div style='margin-top:10px;padding-top:10px;border-top:1px solid #e5bab6;"
+                    f"font-family:var(--serif);font-style:italic;font-size:.8rem;"
+                    f"color:var(--alert);line-height:1.5'>⚑ {reason}</div>"
+                )
+
+            st.markdown(
+                f"<div style='border:{border_left};border-radius:2px;padding:12px 16px;"
+                f"background:{bg_color};margin-bottom:8px'>"
+                f"{header_html}{reason_html}</div>",
+                unsafe_allow_html=True)
 
 
 def _render_alert_detail(row, df):
